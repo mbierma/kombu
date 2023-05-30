@@ -950,10 +950,11 @@ class Channel(virtual.Channel):
         command_args = ['BRPOP', *keys]
         if self.global_keyprefix:
             command_args = self.client._prefix_args(command_args)
-
+        print("BRPOP START", keys, timeout)
         self.client.connection.send_command(*command_args)
 
     def _brpop_read(self, **options):
+        print("BRPOP END")
         try:
             try:
                 dest__item = self.client.parse_response(self.client.connection,

@@ -150,3 +150,38 @@ def test_RedisConnectTimeout(monkeypatch):
         # note the host/port here is irrelevant because
         # connect will raise a socket.timeout
         kombu.Connection('redis://localhost:12345').connect()
+
+
+#@pytest.mark.env('redis')
+class test_RedisInPoll(BaseMessage):
+    # simulate a connection close while in poll
+
+    def test_requeue(self, connection):
+        test_queue = kombu.Queue(
+            'test', routing_key='test', max_priority=10
+        )
+        with connection.channel() as channel:
+            channel.client.delete(test_queue.name)
+            consumer = kombu.Consumer(
+                connection, [test_queue], accept=['pickle']
+            )
+            consumer.register_callback(lambda *args: None)
+            with consumer:
+                with pytest.raises(socket.timeout):
+                    connection.drain_events(timeout=0.1)
+            producer = kombu.Producer(channel)
+            producer.publish(
+                {'msg': 'first'},
+                retry=True,
+                exchange=test_queue.exchange,
+                routing_key=test_queue.routing_key,
+                declare=[test_queue],
+                serializer='json'
+            )
+        connection.close()
+        connection.connect()
+        assert channel.client.llen(test_queue.name) == 1
+        connection.close()
+            # brpop-start
+            # close
+            # check to make sure task is still there
